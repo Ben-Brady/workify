@@ -17,14 +17,13 @@ export const createMessageHandler = <T extends WorkerInterface>(
     Interface: T,
 ): Window["onmessage"] & { _interface: T } =>
     (async (e) => {
-        const { id, args, name } = e.data as WorkerRequest;
-
+        const [id, name, args] = e.data as WorkerRequest;
         try {
             const value = await Interface[name](...args);
-            const response = { id, value, isError: false } satisfies WorkerResponse;
+            const response = [id, value, false] satisfies WorkerResponse;
             postMessage(response, { transfer: transfers });
-        } catch (e) {
-            postMessage({ id, value: e, isError: false } satisfies WorkerResponse);
+        } catch (err) {
+            postMessage([id, err, true] satisfies WorkerResponse);
         }
         transfers = [];
     }) as Window["onmessage"] & { _interface: T };
@@ -37,32 +36,27 @@ export const createWorker = <T extends FunctionInterace>(
         {},
         {
             get(_, name) {
-                if (typeof name == "symbol") return undefined;
+                name = name as string;
                 if (name == "worker") return worker;
 
                 return (...args: any[]) => {
                     const id = Math.random();
-                    worker.postMessage({ id, name, args } satisfies WorkerRequest, transfers);
+                    worker.postMessage([id, name, args] satisfies WorkerRequest, transfers);
                     transfers = [];
 
-                    const controller = new AbortController();
-                    const signal = controller.signal;
                     return new Promise((resolve, reject) => {
-                        worker.addEventListener(
-                            "message",
-                            (e) => {
-                                const r = e.data as WorkerResponse;
-                                if (r.id !== id) return;
-                                const { value } = r;
-                                if (!r.isError) {
-                                    resolve(value);
-                                } else {
-                                    reject(value);
-                                }
-                                controller.abort();
-                            },
-                            { signal },
-                        );
+                        const onMessage = (ev: MessageEvent<any>) => {
+                            const [requestId, value, isError] = ev.data[1];
+
+                            if (requestId !== id) return;
+                            if (!isError) {
+                                resolve(value);
+                            } else {
+                                reject(value);
+                            }
+                            worker.removeEventListener("message", onMessage);
+                        };
+                        worker.addEventListener("message", onMessage);
                     });
                 };
             },
@@ -70,14 +64,5 @@ export const createWorker = <T extends FunctionInterace>(
     ) as unknown as WorkerInterface<T> & { worker: Worker };
 };
 
-type WorkerRequest = {
-    id: number;
-    name: string;
-    args: any[];
-};
-
-type WorkerResponse = {
-    id: number;
-    isError: boolean;
-    value: any;
-};
+type WorkerRequest = [id: number, name: string, args: any[]];
+type WorkerResponse = [id: number, value: any, isError: boolean];

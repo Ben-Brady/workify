@@ -1,6 +1,6 @@
 # Workify
 
-Workify is minimal tool for creating web worker interfaces with a 1kb bundle size (500b gzipped)
+Workify is minimal tool for creating web worker interfaces with a 540b bundle size (340b gzipped)
 
 ```
 npm install @nnilky/workify
