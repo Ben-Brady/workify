@@ -1,19 +1,19 @@
-type FunctionInterace = Record<Exclude<string, "close">, (...args: any[]) => any>;
-
 type Promisify<T extends (...args: any) => any> = T extends (...args: any) => Promise<any>
     ? T
     : (...args: Parameters<T>) => Promise<ReturnType<T>>;
 
-type WorkerInterface<T extends FunctionInterace = FunctionInterace> = {
+export type FunctionInteface = Record<Exclude<string, "close">, (...args: any[]) => any>;
+
+export type WorkerifyInterface<T extends FunctionInteface = FunctionInteface> = {
     [Key in keyof T]: Promisify<T[Key]>;
 };
 
-export type InferInterface<T extends { _interface: WorkerInterface }> = T["_interface"];
+export type InferInterface<T extends { _interface: WorkerifyInterface }> = T["_interface"];
 
 let transfers: Transferable[] = [];
 export const transfer = (value: Transferable) => transfers.push(value);
 
-export const createMessageHandler = <T extends WorkerInterface>(
+export const createMessageHandler = <T extends WorkerifyInterface>(
     Interface: T,
 ): Window["onmessage"] & { _interface: T } =>
     (async (e) => {
@@ -28,9 +28,9 @@ export const createMessageHandler = <T extends WorkerInterface>(
         transfers = [];
     }) as Window["onmessage"] & { _interface: T };
 
-export const createWorker = <T extends FunctionInterace>(
+export const createWorker = <T extends FunctionInteface>(
     url: URL | string,
-): WorkerInterface<T> & { worker: globalThis.Worker } => {
+): WorkerifyInterface<T> & { worker: globalThis.Worker } => {
     const worker = new Worker(url, { type: "module" });
     return new Proxy(
         {},
@@ -61,7 +61,7 @@ export const createWorker = <T extends FunctionInterace>(
                 };
             },
         },
-    ) as unknown as WorkerInterface<T> & { worker: Worker };
+    ) as unknown as WorkerifyInterface<T> & { worker: Worker };
 };
 
 type WorkerRequest = [id: number, name: string, args: any[]];
