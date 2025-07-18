@@ -46,7 +46,7 @@ export const createWorker = <T extends FunctionInteface>(
 
                     return new Promise((resolve, reject) => {
                         const onMessage = (ev: MessageEvent<any>) => {
-                            const [requestId, value, isError] = ev.data[1];
+                            const [requestId, value, isError] = ev.data;
 
                             if (requestId !== id) return;
                             if (!isError) {
