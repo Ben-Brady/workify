@@ -1,6 +1,6 @@
 # Workify
 
-Workify is minimal tool for creating web worker interfaces with a 540b bundle size (340b gzipped)
+Workify is minimal tool for creating web worker interfaces coming at 540b minified (340b gzipped)
 
 ```
 npm install @nnilky/workify
@@ -29,29 +29,6 @@ export type Interface = InferInterface<typeof handler>;
 onmessage = handler;
 ```
 
-## Referencing the Worker
-
-Getting the worker to bundle correctly is a bit finicky.
-
-If your using vite, I recommend using their url import syntax
-
-```ts
-import WorkerURL from "./worker?url&worker";
-
-const worker = createWorker(WorkerURL);
-```
-
-otherwise, use `URL("./path-to-worker", import.meta.url)`
-
-```ts
-const WorkerURL = new URL("./worker", import.meta.url);
-const worker = createWorker(WorkerURL);
-```
-
-Please consult your bundlers documentation:
-
--   [Vite Web Workeras](https://vite.dev/guide/features.html#web-workers)
--   [Webpack Web Workers](https://webpack.js.org/guides/web-workers/)
 
 ## How it works
 
@@ -114,4 +91,45 @@ onmessage = handler;
 
 This works under the hood by creating a list of values that are included in the transfers in the next request/reponse.
 
-Because of this, It's critical you do this right before a request or response.
+Because of this, It's critical you do this right before the call to worker or returning from a worker.
+This to avoid any race conditions with async.
+
+```ts
+// ❌ Incorrect
+const image = await createImage()
+transfer(image)
+const thumbnail = await generateThumbnail(image)
+transfer(thumbnail)
+return { image, thumbnail }
+
+// ✔️ Correct
+const image = await createImage()
+const thumbnail = await generateThumbnail(image)
+transfer(image)
+transfer(thumbnail)
+return { image, thumbnail }
+```
+
+## Bundling the Worker
+
+Getting the worker to bundle correctly is a bit finicky.
+
+If your using Vite, I recommend using their url import syntax
+
+```ts
+import WorkerURL from "./worker?url&worker";
+
+const worker = createWorker(WorkerURL);
+```
+
+otherwise, the recommended way is to use `new URL("./path-to-worker", import.meta.url)`
+
+```ts
+const WorkerURL = new URL("./worker", import.meta.url);
+const worker = createWorker(WorkerURL);
+```
+
+However, please consult your bundlers documentation for proper instructions:
+
+-   [Vite Web Workeras](https://vite.dev/guide/features.html#web-workers)
+-   [Webpack Web Workers](https://webpack.js.org/guides/web-workers/)
