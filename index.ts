@@ -2,20 +2,23 @@ type Promisify<T extends (...args: any) => any> = T extends (...args: any) => Pr
     ? T
     : (...args: Parameters<T>) => Promise<ReturnType<T>>;
 
-export type FunctionInteface = Record<Exclude<string, "close">, (...args: any[]) => any>;
+export type FunctionInterface = Record<string, (...args: any[]) => any>;
 
-export type WorkerifyInterface<T extends FunctionInteface = FunctionInteface> = {
+export type WorkerInterface<T extends FunctionInterface = FunctionInterface> = {
     [Key in keyof T]: Promisify<T[Key]>;
 };
 
-export type InferInterface<T extends { _interface: WorkerifyInterface }> = T["_interface"];
+export type InferInterface<T extends { _api: FunctionInterface }> = WorkerInterface<T["_api"]>;
 
 let transfers: Transferable[] = [];
 export const transfer = (value: Transferable) => transfers.push(value);
 
-export const createMessageHandler = <T extends WorkerifyInterface>(
+type WorkerRequest = [id: number, name: string, args: any[]];
+type WorkerResponse = [id: number, value: any, isError: boolean];
+
+export const createMessageHandler = <T extends FunctionInterface>(
     Interface: T,
-): Window["onmessage"] & { _interface: T } =>
+): Window["onmessage"] & { _api: T } =>
     (async (e) => {
         const [id, name, args] = e.data as WorkerRequest;
         try {
@@ -26,19 +29,18 @@ export const createMessageHandler = <T extends WorkerifyInterface>(
             postMessage([id, err, true] satisfies WorkerResponse);
         }
         transfers = [];
-    }) as Window["onmessage"] & { _interface: T };
+    }) as Window["onmessage"] & { _api: T };
 
-export const createWorker = <T extends FunctionInteface>(
+export const createWorker = <T extends FunctionInterface>(
     url: URL | string,
-): WorkerifyInterface<T> & { worker: globalThis.Worker } => {
+): [module: WorkerInterface<T>, worker: globalThis.Worker] => {
     const worker = new Worker(url, { type: "module" });
-    return new Proxy(
+
+    const api = new Proxy(
         {},
         {
             get(_, name) {
                 name = name as string;
-                if (name == "worker") return worker;
-
                 return (...args: any[]) => {
                     const id = Math.random();
                     worker.postMessage([id, name, args] satisfies WorkerRequest, transfers);
@@ -61,8 +63,33 @@ export const createWorker = <T extends FunctionInteface>(
                 };
             },
         },
-    ) as unknown as WorkerifyInterface<T> & { worker: Worker };
+    ) as unknown as WorkerInterface<T> & { worker: Worker };
+
+    return [api, worker];
 };
 
-type WorkerRequest = [id: number, name: string, args: any[]];
-type WorkerResponse = [id: number, value: any, isError: boolean];
+export const createWorkerPool = <T extends WorkerInterface>(
+    workerUrl: string,
+    size: number = navigator.hardwareConcurrency,
+): [api: T, workers: globalThis.Worker[]] => {
+    const workers = Array.from({ length: size }, () => createWorker<T>(workerUrl));
+    const workerObjects = workers.map((v) => v[1]);
+
+    let index = 0;
+    const api = new Proxy(
+        {},
+        {
+            get:
+                (_, name: string) =>
+                // Need to do a wrapper function, so [].map(pool.foo) isn't the same call
+                (...args: any[]) => {
+                    index = (index + 1) % size;
+                    const api = workers[index][0];
+                    const func = api[name as any];
+                    return func(...args);
+                },
+        },
+    ) as T;
+
+    return [api, workerObjects];
+};
