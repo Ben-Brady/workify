@@ -14,6 +14,7 @@
         "moduleDetection": "force",
         "jsx": "preserve",
         "jsxImportSource": "solid-js",
+        "removeComments": true,
 
         /* Linting */
         "strict": true,
