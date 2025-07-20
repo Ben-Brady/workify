@@ -1,10 +1,12 @@
 # Workify
 
-Workify is minimal tool for creating web worker interfaces, weighing 740b (430b gzipped).
+A minimal tool for creating web workers APIs, weighting 740 bytes (430b gzipped).
 
 ```shell
 npm install @nnilky/workify
 ```
+
+## Example
 
 ```ts
 // worker.ts
@@ -33,7 +35,7 @@ console.log(`1 + 2 = ${result}`);
 
 Getting the worker to bundle correctly is a bit finicky.
 
-If your using Vite, I recommend using their url import syntax
+If you are using Vite, I recommend using their url import syntax
 
 ```ts
 import WorkerURL from "./worker?worker&url";
@@ -41,7 +43,7 @@ import WorkerURL from "./worker?worker&url";
 const worker = createWorker(WorkerURL);
 ```
 
-otherwise, the recommended way is to use `new URL("./path-to-worker", import.meta.url)`
+Otherwise, the recommended way is to use `new URL("./path-to-worker", import.meta.url)`
 
 ```ts
 const WorkerURL = new URL("./worker", import.meta.url);
@@ -55,7 +57,7 @@ However, please consult your bundlers documentation for proper instructions:
 
 ## Worker Pool
 
-You can construct a worker pool the same way you'd make a worker, you can optionally specify the number of workers to use with the default being `navigator.hardwareConcurrency`.
+You can construct a worker pool the same way you'd make a worker. You can optionally specify the number of workers to use with the default being `navigator.hardwareConcurrency`.
 
 ```ts
 import { createWorkerPool } from "@nnilky/workify";
@@ -127,9 +129,9 @@ return { image, thumbnail }
 
 ## Cleanup
 
-In order to terminate workers when you don't need themm `createWorker` and `createWorkerPool` both return the actual workers as their second return value. You can use this in your framework to perform cleanup
+In order to terminate workers when you don't need them, `createWorker` and `createWorkerPool` both return the actual workers as their second return value. You can use this in your framework to perform cleanup.
 
-Here's how you'd do it in Solid.js:
+For example, in Solid.js it would look something like this:
 
 ```ts
 const useWorker = <T extends WorkerInterface>(url: string): T => {
@@ -147,6 +149,6 @@ const useWorkerPool = <T extends WorkerInterface>(url: string): T => {
 
 ## How it works
 
-Under the when you try to call a method on a worker, the reference to the function is proxied. Only the function name and arguments are sent to the worker, this is then recieved on the other end and mapped to the correct function.
+Under the hood, when you try to call a method on a worker, the reference to the function is proxied. Only the function name and arguments are sent to the worker, this is then recieved on the other end and mapped to the correct function.
 
 The `Interface` generic lets you have a usable developer experience by providing proper typing to the proxy object.
