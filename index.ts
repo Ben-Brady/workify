@@ -31,9 +31,9 @@ export const createMessageHandler = <T extends FunctionInterface>(
         transfers = [];
     }) as Window["onmessage"] & { _api: T };
 
-export const createWorker = <T extends FunctionInterface>(
+export const createWorker = <T extends WorkerInterface>(
     url: URL | string,
-): [module: WorkerInterface<T>, worker: globalThis.Worker] => {
+): [module: T, worker: globalThis.Worker] => {
     const worker = new Worker(url, { type: "module" });
 
     const api = new Proxy(
@@ -63,7 +63,7 @@ export const createWorker = <T extends FunctionInterface>(
                 };
             },
         },
-    ) as unknown as WorkerInterface<T> & { worker: Worker };
+    ) as T;
 
     return [api, worker];
 };
