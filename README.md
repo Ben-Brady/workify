@@ -1,6 +1,6 @@
 # Workify
 
-A minimal tool for creating web workers APIs, weighting 740 bytes (430b gzipped).
+A minimal tool for creating web workers APIs, weighing 740 bytes (430b gzipped).
 
 ```shell
 npm install @nnilky/workify
@@ -22,7 +22,7 @@ onmessage = handler;
 ```
 
 ```ts
-// client.ts
+// main.ts
 import { createWorker } from "@nnilky/workify";
 import type { Interface } from "./worker";
 
@@ -40,16 +40,16 @@ Getting the worker to bundle correctly is a bit finicky.
 If you are using Vite, I recommend using their url import syntax
 
 ```ts
-import WorkerURL from "./worker?worker&url";
+import workerURL from "./worker?worker&url";
 
-const [api] = createWorker(WorkerURL);
+const [api] = createWorker(workerURL);
 ```
 
 Otherwise, the recommended way is to use `new URL("./path-to-worker", import.meta.url)`
 
 ```ts
-const WorkerURL = new URL("./worker", import.meta.url);
-const [api] = createWorker(WorkerURL);
+const workerURL = new URL("./worker.ts", import.meta.url);
+const [api] = createWorker(workerURL);
 ```
 
 However, please consult your bundlers documentation for proper instructions:
@@ -65,11 +65,11 @@ You can construct a worker pool the same way you'd make a worker. You can option
 import { createWorkerPool } from "@nnilky/workify";
 import type { Interface } from "./worker";
 
-const [api] = createWorkerPool<Interface>(new URL("./worker", import.meta.url));
+const [api] = createWorkerPool<Interface>(new URL("./worker.ts", import.meta.url));
 
 const promises = []
 for (let i = 0; i < 16; i++) {
-    promises.push(api.renderFrame(index))
+    promises.push(api.renderFrame(i))
 }
 const frames = await Promise.all(promises)
 ```
@@ -81,19 +81,20 @@ This just redirects each function call to a different worker round robin style.
 In order to transfer objects to and from workers, use `transfer()`. You can only transfer types that are [Transferable](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Transferable_objects#supported_objects).
 
 ```ts
-// In client
+// From main
 import { transfer } from "@nnilky/workify";
 
-const [api] = createWorker(new URL("./worker", import.meta.url));
+const [api] = createWorker(new URL("./worker.ts", import.meta.url));
 
 const canvas = new OffscreenCanvas(100,100)
 const image = canvas.transferToImageBitmap()
+
 transfer(image)
 api.resizeImage(image)
 ```
 
 ```ts
-// In a worker
+// From a worker
 import { transfer } from "@nnilky/workify";
 
 const createImage = () => {
@@ -136,6 +137,8 @@ In order to terminate workers when you don't need them, `createWorker` and `crea
 For example, in Solid.js it would look something like this:
 
 ```ts
+import { type WorkerInterface, createWorker, createWorkerPool } from "@nnilky/workify"
+
 const useWorker = <T extends WorkerInterface>(url: string): T => {
     const [api, worker] = createWorker<T>(url);
     onCleanup(() => worker.terminate())
@@ -144,7 +147,7 @@ const useWorker = <T extends WorkerInterface>(url: string): T => {
 
 const useWorkerPool = <T extends WorkerInterface>(url: string): T => {
     const [api, workers] = createWorkerPool<T>(url);
-    onCleanup(() => workers.forEach(v => v.terminate())
+    onCleanup(() => workers.forEach(v => v.terminate()))
     return api
 }
 ```
@@ -166,8 +169,8 @@ const handler = createMessageHandler({ add });
 export type Interface = InferInterface<typeof handler>;
 
 onmessage = (e) => {
-    if (e.data["myCustomSystem"]) {
-        runCustomSystem(e)
+    if (e.data.isCustomRequest) {
+        runCustomRequest(e)
     } else {
         handler(e);
     }
@@ -182,7 +185,7 @@ postMessage({ type:"progress-update", progress: 0 })
 ```
 
 ```ts
-const [api, worker] = createWorker(WorkerURL)
+const [api, worker] = createWorker(workerURL)
 worker.addEventListener("message", (e) => {
     if (e.data?.type !== "progress-update") return
     console.log(`Progress: ${e.data.progress}`)
