@@ -13,8 +13,8 @@ export type InferInterface<T extends { _api: FunctionInterface }> = WorkerInterf
 let transfers: Transferable[] = [];
 export const transfer = (value: Transferable) => transfers.push(value);
 
-type WorkerRequest = [id: number, name: string, args: any[]];
-type WorkerResponse = [id: number, value: any, isError: boolean];
+type WorkerRequest = [id: symbol, name: string, args: any[]];
+type WorkerResponse = [id: symbol, value: any, isError: boolean];
 
 export const createMessageHandler = <T extends FunctionInterface>(
     Interface: T,
@@ -42,7 +42,7 @@ export const createWorker = <T extends WorkerInterface>(
             get(_, name) {
                 name = name as string;
                 return (...args: any[]) => {
-                    const id = Math.random();
+                    const id = Symbol();
                     worker.postMessage([id, name, args] satisfies WorkerRequest, transfers);
                     transfers = [];
 
