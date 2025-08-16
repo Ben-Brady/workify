@@ -6,6 +6,8 @@ A minimal tool for creating web workers APIs, weighting 740 bytes (430b gzipped)
 npm install @nnilky/workify
 ```
 
+https://www.npmjs.com/package/@nnilky/workify
+
 ## Example
 
 ```ts
@@ -25,9 +27,9 @@ import { createWorker } from "@nnilky/workify";
 import type { Interface } from "./worker";
 
 const workerUrl = new URL("./worker.ts", import.meta.url)
-const [worker] = createWorker<Interface>(workerUrl);
+const [api] = createWorker<Interface>(workerUrl);
 
-const result = await worker.add(1, 2);
+const result = await api.add(1, 2);
 console.log(`1 + 2 = ${result}`);
 ```
 
@@ -40,14 +42,14 @@ If you are using Vite, I recommend using their url import syntax
 ```ts
 import WorkerURL from "./worker?worker&url";
 
-const worker = createWorker(WorkerURL);
+const [api] = createWorker(WorkerURL);
 ```
 
 Otherwise, the recommended way is to use `new URL("./path-to-worker", import.meta.url)`
 
 ```ts
 const WorkerURL = new URL("./worker", import.meta.url);
-const [worker] = createWorker(WorkerURL);
+const [api] = createWorker(WorkerURL);
 ```
 
 However, please consult your bundlers documentation for proper instructions:
@@ -63,11 +65,11 @@ You can construct a worker pool the same way you'd make a worker. You can option
 import { createWorkerPool } from "@nnilky/workify";
 import type { Interface } from "./worker";
 
-const [worker] = createWorkerPool<Interface>(new URL("./worker", import.meta.url));
+const [api] = createWorkerPool<Interface>(new URL("./worker", import.meta.url));
 
 const promises = []
 for (let i = 0; i < 16; i++) {
-    promises.push(worker.renderFrame(index))
+    promises.push(api.renderFrame(index))
 }
 const frames = await Promise.all(promises)
 ```
@@ -82,12 +84,12 @@ In order to transfer objects to and from workers, use `transfer()`. You can only
 // In client
 import { transfer } from "@nnilky/workify";
 
-const [worker] = createWorker(new URL("./worker", import.meta.url));
+const [api] = createWorker(new URL("./worker", import.meta.url));
 
 const canvas = new OffscreenCanvas(100,100)
 const image = canvas.transferToImageBitmap()
 transfer(image)
-worker.resizeImage(image)
+api.resizeImage(image)
 ```
 
 ```ts
@@ -145,6 +147,46 @@ const useWorkerPool = <T extends WorkerInterface>(url: string): T => {
     onCleanup(() => workers.forEach(v => v.terminate())
     return api
 }
+```
+
+
+## Customising Worker
+
+If you want to have a non-request/response protocol on your worker, for instance reporting back updates to a task. You can add an if condition to the `onmessage` global for change how data is recieved.
+
+```ts
+// worker.js
+import { createMessageHandler, type InferInterface } from "@nnilky/workify";
+import { performLongTask } from "./custom";
+
+const add = (a: number, b: number) => a + b;
+
+const handler = createMessageHandler({ add });
+
+export type Interface = InferInterface<typeof handler>;
+
+onmessage = (e) => {
+    if (e.data["myCustomSystem"]) {
+        runCustomSystem(e)
+    } else {
+        handler(e);
+    }
+}
+```
+
+Or if you want to send data back, such as a progress report, you can just send it using a normal `postMesssage` call and attach an message listener to the exposed worker, workify will ignore any non-workify messages.
+
+```ts
+// worker.js
+postMessage({ type:"progress-update", progress: 0 })
+```
+
+```ts
+const [api, worker] = createWorker(WorkerURL)
+worker.addEventListener("message", (e) => {
+    if (e.data?.type !== "progress-update") return
+    console.log(`Progress: ${e.data.progress}`)
+})
 ```
 
 ## How it works
