@@ -8,22 +8,68 @@ export type WorkerInterface<T extends FunctionInterface = FunctionInterface> = {
     [Key in keyof T]: Promisify<T[Key]>;
 };
 
+/**
+ * Used to infer the function interface of a workify endpoint
+ *
+ * ```ts
+ * export type Interface = InferInterface<typeof handler>;
+ * ```
+ */
 export type InferInterface<T extends { _api: FunctionInterface }> = WorkerInterface<T["_api"]>;
 
 let transfers: Transferable[] = [];
+
+/**
+ * Used to transfer objects to next worker request/reponse
+ *
+ * ### Request
+ *
+ * ```ts
+ * const [api] = createWorker("./worker")
+ * transfer(image)
+ * api.enocdeImage(image)
+ * ```
+ *
+ * ### Response
+ *
+ * ```ts
+ * const generateImage(image) {
+ *     const thumbnail = createThumbnail(image)
+ *     transfer(thumbnail)
+ *     return thumbnail
+ * }
+ * ```
+ *
+ * **Note**: You should only call this directly before a request/response to avoid race conditions
+ */
 export const transfer = (value: Transferable) => transfers.push(value);
 
 type WorkerRequest = [id: symbol, name: string, args: any[]];
 type WorkerResponse = [id: symbol, value: any, isError: boolean];
 
+/**
+ * Creates an `onmessage` handler for workify requests
+ *
+ * ### Example
+ *
+ * ```ts
+ * import { createMessageHandler, type InferInterface } from "@nnilky/workify";
+ *
+ * const add = (a: number, b: number) => a + b;
+ *
+ * const handler = createMessageHandler({ add });
+ * export type Interface = InferInterface<typeof handler>;
+ * onmessage = handler;
+ * ```
+ */
 export const createMessageHandler = <T extends FunctionInterface>(
     Interface: T,
 ): Window["onmessage"] & { _api: T } =>
     (async (e) => {
-        const [id, name, args] = e.data as WorkerRequest;
+        let [id, name, args] = e.data as WorkerRequest;
         try {
-            const value = await Interface[name](...args);
-            const response = [id, value, false] satisfies WorkerResponse;
+            let value = await Interface[name](...args);
+            let response = [id, value, false] satisfies WorkerResponse;
             postMessage(response, { transfer: transfers });
         } catch (err) {
             postMessage([id, err, true] satisfies WorkerResponse);
@@ -31,24 +77,46 @@ export const createMessageHandler = <T extends FunctionInterface>(
         transfers = [];
     }) as Window["onmessage"] & { _api: T };
 
+/**
+ * Creates a worker that uses a workify interface
+ *
+ * ### Example
+ *
+ * ```ts
+ * import { createWorker } from "@nnilky/workify";
+ *
+ * const url = new URL("./worker.ts", import.meta.url)
+ * const [api, worker] = createWorker(url);
+ * ```
+ *
+ * If you want proper typing, you should use the infered interface
+ *
+ * ```ts
+ * import { createWorker } from "@nnilky/workify";
+ * import type { Interface } from "./worker";
+ *
+ * const workerUrl = new URL("./worker.ts", import.meta.url)
+ * const [api] = createWorker<Interface>(workerUrl);
+ * ```
+ */
 export const createWorker = <T extends WorkerInterface>(
     url: URL | string,
 ): [module: T, worker: globalThis.Worker] => {
-    const worker = new Worker(url, { type: "module" });
+    let worker = new Worker(url, { type: "module" });
 
-    const api = new Proxy(
+    let api = new Proxy(
         {},
         {
             get(_, name) {
                 name = name as string;
                 return (...args: any[]) => {
-                    const id = Symbol();
+                    let id = Symbol();
                     worker.postMessage([id, name, args] satisfies WorkerRequest, transfers);
                     transfers = [];
 
                     return new Promise((resolve, reject) => {
-                        const onMessage = (ev: MessageEvent<any>) => {
-                            const [requestId, value, isError] = ev.data;
+                        let onMessage = (ev: MessageEvent<any>) => {
+                            let [requestId, value, isError] = ev.data;
 
                             if (requestId !== id) return;
                             if (!isError) {
@@ -68,15 +136,37 @@ export const createWorker = <T extends WorkerInterface>(
     return [api, worker];
 };
 
+/**
+ * Creates a worker that uses a workify interface
+ *
+ * ### Example
+ *
+ * ```ts
+ * import { createWorkerPool } from "@nnilky/workify";
+ *
+ * const url = new URL("./worker.ts", import.meta.url)
+ * const [api, workers] = createWorkerPool(url, 8);
+ * ```
+ *
+ * If you want proper typing, you should use the infered interface
+ *
+ * ```ts
+ * import { createWorkerPool } from "@nnilky/workify";
+ * import type { Interface } from "./worker";
+ *
+ * const workerUrl = new URL("./worker.ts", import.meta.url)
+ * const [api] = createWorkerPool<Interface>(workerUrl);
+ * ```
+ */
 export const createWorkerPool = <T extends WorkerInterface>(
     workerUrl: string,
     size: number = navigator.hardwareConcurrency,
 ): [api: T, workers: globalThis.Worker[]] => {
-    const workers = Array.from({ length: size }, () => createWorker<T>(workerUrl));
-    const workerObjects = workers.map((v) => v[1]);
+    let workers = Array.from({ length: size }, () => createWorker<T>(workerUrl));
+    let workerObjects = workers.map((v) => v[1]);
 
     let index = 0;
-    const api = new Proxy(
+    let api = new Proxy(
         {},
         {
             get:
@@ -84,8 +174,8 @@ export const createWorkerPool = <T extends WorkerInterface>(
                 // Need to do a wrapper function, so [].map(pool.foo) isn't the same call
                 (...args: any[]) => {
                     index = (index + 1) % size;
-                    const api = workers[index][0];
-                    const func = api[name as any];
+                    let api = workers[index][0];
+                    let func = api[name as any];
                     return func(...args);
                 },
         },
